@@ -2,7 +2,9 @@ package ui
 
 import (
 	"log"
+	"time"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/pauloborszcz/tics/internal/config"
@@ -10,116 +12,93 @@ import (
 )
 
 type SetupPage struct {
-	box        *gtk.Box
-	urlEntry   *gtk.Entry
-	tokenEntry *gtk.Entry
-	appEntry   *gtk.Entry
+	box         *gtk.Box
+	urlRow      *adw.EntryRow
+	tokenRow    *adw.PasswordEntryRow
+	appRow      *adw.EntryRow
 	statusLabel *gtk.Label
-	saveBtn    *gtk.Button
-	onSuccess  func(cfg *config.Config)
+	saveBtn     *gtk.Button
+	onSuccess   func(cfg *config.Config)
 }
 
 func NewSetupPage(cfg *config.Config, onSuccess func(cfg *config.Config)) *SetupPage {
 	sp := &SetupPage{onSuccess: onSuccess}
 
-	sp.box = gtk.NewBox(gtk.OrientationVertical, 16)
-	sp.box.SetMarginTop(48)
-	sp.box.SetMarginBottom(48)
-	sp.box.SetMarginStart(48)
-	sp.box.SetMarginEnd(48)
-	sp.box.SetVAlign(gtk.AlignCenter)
-	sp.box.SetHAlign(gtk.AlignCenter)
-	sp.box.SetSizeRequest(420, -1)
+	sp.box = gtk.NewBox(gtk.OrientationVertical, 0)
 
-	// Title
-	title := gtk.NewLabel("Tics")
-	title.AddCSSClass("setup-title")
-	sp.box.Append(title)
+	page := adw.NewStatusPage()
+	page.SetIconName("network-server-symbolic")
+	page.SetTitle("Tics")
+	page.SetDescription("Configure a conexao com o GLPI")
 
-	subtitle := gtk.NewLabel("Configure a conexao com o GLPI")
-	subtitle.AddCSSClass("setup-subtitle")
-	subtitle.SetMarginBottom(16)
-	sp.box.Append(subtitle)
+	formBox := gtk.NewBox(gtk.OrientationVertical, 16)
 
-	// URL field
-	urlLabel := gtk.NewLabel("URL da API GLPI")
-	urlLabel.SetHAlign(gtk.AlignStart)
-	urlLabel.AddCSSClass("setup-field-label")
-	sp.box.Append(urlLabel)
+	// Preferences group with entry rows
+	group := adw.NewPreferencesGroup()
 
-	sp.urlEntry = gtk.NewEntry()
-	sp.urlEntry.SetPlaceholderText("https://nexus.lojasmm.com.br/apirest.php")
+	sp.urlRow = adw.NewEntryRow()
+	sp.urlRow.SetTitle("URL da API GLPI")
 	if cfg.GLPIURL != "" {
-		sp.urlEntry.SetText(cfg.GLPIURL)
+		sp.urlRow.SetText(cfg.GLPIURL)
 	}
-	sp.box.Append(sp.urlEntry)
+	group.Add(sp.urlRow)
 
-	// User Token field
-	tokenLabel := gtk.NewLabel("User Token")
-	tokenLabel.SetHAlign(gtk.AlignStart)
-	tokenLabel.AddCSSClass("setup-field-label")
-	tokenLabel.SetMarginTop(8)
-	sp.box.Append(tokenLabel)
-
-	sp.tokenEntry = gtk.NewEntry()
-	sp.tokenEntry.SetPlaceholderText("Seu user_token do GLPI")
+	sp.tokenRow = adw.NewPasswordEntryRow()
+	sp.tokenRow.SetTitle("User Token")
 	if cfg.UserToken != "" {
-		sp.tokenEntry.SetText(cfg.UserToken)
+		sp.tokenRow.SetText(cfg.UserToken)
 	}
-	sp.box.Append(sp.tokenEntry)
+	group.Add(sp.tokenRow)
 
-	// App Token field
-	appLabel := gtk.NewLabel("App Token (opcional)")
-	appLabel.SetHAlign(gtk.AlignStart)
-	appLabel.AddCSSClass("setup-field-label")
-	appLabel.SetMarginTop(8)
-	sp.box.Append(appLabel)
-
-	sp.appEntry = gtk.NewEntry()
-	sp.appEntry.SetPlaceholderText("App-Token (se necessario)")
+	sp.appRow = adw.NewEntryRow()
+	sp.appRow.SetTitle("App Token (opcional)")
 	if cfg.AppToken != "" {
-		sp.appEntry.SetText(cfg.AppToken)
+		sp.appRow.SetText(cfg.AppToken)
 	}
-	sp.box.Append(sp.appEntry)
+	group.Add(sp.appRow)
+
+	formBox.Append(group)
 
 	// Status
 	sp.statusLabel = gtk.NewLabel("")
-	sp.statusLabel.AddCSSClass("setup-status")
-	sp.statusLabel.SetMarginTop(8)
-	sp.box.Append(sp.statusLabel)
+	sp.statusLabel.SetMarginTop(4)
+	formBox.Append(sp.statusLabel)
 
 	// Save button
 	sp.saveBtn = gtk.NewButtonWithLabel("Validar e Salvar")
 	sp.saveBtn.AddCSSClass("suggested-action")
-	sp.saveBtn.AddCSSClass("setup-save-btn")
-	sp.saveBtn.SetMarginTop(16)
+	sp.saveBtn.AddCSSClass("pill")
+	sp.saveBtn.SetHAlign(gtk.AlignCenter)
 	sp.saveBtn.ConnectClicked(sp.onValidate)
-	sp.box.Append(sp.saveBtn)
+	formBox.Append(sp.saveBtn)
+
+	page.SetChild(formBox)
+	sp.box.Append(page)
 
 	return sp
 }
 
 func (sp *SetupPage) onValidate() {
-	url := sp.urlEntry.Text()
-	token := sp.tokenEntry.Text()
-	appToken := sp.appEntry.Text()
+	url := sp.urlRow.Text()
+	token := sp.tokenRow.Text()
+	appToken := sp.appRow.Text()
 
 	if url == "" || token == "" {
 		sp.statusLabel.SetText("URL e User Token sao obrigatorios.")
-		sp.statusLabel.AddCSSClass("setup-error")
-		sp.statusLabel.RemoveCSSClass("setup-success")
+		sp.statusLabel.AddCSSClass("error")
 		return
 	}
 
 	sp.saveBtn.SetSensitive(false)
 	sp.statusLabel.SetText("Validando conexao...")
-	sp.statusLabel.RemoveCSSClass("setup-error")
-	sp.statusLabel.RemoveCSSClass("setup-success")
+	sp.statusLabel.RemoveCSSClass("error")
+	sp.statusLabel.RemoveCSSClass("success")
 
 	cfg := &config.Config{
-		GLPIURL:   url,
-		UserToken: token,
-		AppToken:  appToken,
+		GLPIURL:      url,
+		UserToken:    token,
+		AppToken:     appToken,
+		SyncInterval: 5 * time.Minute,
 	}
 
 	go func() {
@@ -133,8 +112,8 @@ func (sp *SetupPage) onValidate() {
 			if err != nil {
 				log.Printf("setup: validation failed: %v", err)
 				sp.statusLabel.SetText("Falha na conexao: " + err.Error())
-				sp.statusLabel.AddCSSClass("setup-error")
-				sp.statusLabel.RemoveCSSClass("setup-success")
+				sp.statusLabel.AddCSSClass("error")
+				sp.statusLabel.RemoveCSSClass("success")
 				sp.saveBtn.SetSensitive(true)
 				return
 			}
@@ -142,14 +121,14 @@ func (sp *SetupPage) onValidate() {
 			if err := cfg.Save(); err != nil {
 				log.Printf("setup: save failed: %v", err)
 				sp.statusLabel.SetText("Erro ao salvar: " + err.Error())
-				sp.statusLabel.AddCSSClass("setup-error")
+				sp.statusLabel.AddCSSClass("error")
 				sp.saveBtn.SetSensitive(true)
 				return
 			}
 
 			sp.statusLabel.SetText("Conexao validada!")
-			sp.statusLabel.AddCSSClass("setup-success")
-			sp.statusLabel.RemoveCSSClass("setup-error")
+			sp.statusLabel.AddCSSClass("success")
+			sp.statusLabel.RemoveCSSClass("error")
 
 			if sp.onSuccess != nil {
 				sp.onSuccess(cfg)

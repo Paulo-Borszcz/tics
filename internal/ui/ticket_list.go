@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/pauloborszcz/tics/internal/glpi"
@@ -27,7 +28,6 @@ func NewTicketList() *TicketList {
 		}
 	})
 
-	// Placeholder when empty
 	placeholder := gtk.NewLabel("Nenhum chamado encontrado")
 	placeholder.AddCSSClass("dim-label")
 	tl.listBox.SetPlaceholder(placeholder)
@@ -42,7 +42,6 @@ func (tl *TicketList) OnSelect(fn func(glpi.Ticket)) {
 func (tl *TicketList) Update(tickets []glpi.Ticket) {
 	tl.tickets = tickets
 
-	// Remove all existing rows
 	for {
 		child := tl.listBox.FirstChild()
 		if child == nil {
@@ -60,15 +59,33 @@ func (tl *TicketList) Update(tickets []glpi.Ticket) {
 func (tl *TicketList) createRow(t glpi.Ticket) *gtk.ListBoxRow {
 	row := gtk.NewListBoxRow()
 
-	box := gtk.NewBox(gtk.OrientationVertical, 4)
+	outer := gtk.NewBox(gtk.OrientationHorizontal, 0)
+
+	// Priority color stripe
+	stripe := gtk.NewBox(gtk.OrientationVertical, 0)
+	stripe.SetSizeRequest(4, -1)
+	stripe.AddCSSClass("priority-stripe")
+	stripe.AddCSSClass("priority-stripe-" + priorityLevel(t.Priority))
+	outer.Append(stripe)
+
+	// Content
+	box := gtk.NewBox(gtk.OrientationVertical, 3)
 	box.AddCSSClass("ticket-row")
 
-	// Top line: ID + priority
+	// Top: ID + date
 	topBox := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	idLabel := gtk.NewLabel(fmt.Sprintf("#%d", t.ID))
 	idLabel.AddCSSClass("ticket-id")
 	idLabel.SetHAlign(gtk.AlignStart)
 	topBox.Append(idLabel)
+
+	if t.DateMod != "" {
+		dateLabel := gtk.NewLabel(formatDate(t.DateMod))
+		dateLabel.AddCSSClass("ticket-meta")
+		dateLabel.SetHAlign(gtk.AlignEnd)
+		dateLabel.SetHExpand(true)
+		topBox.Append(dateLabel)
+	}
 	box.Append(topBox)
 
 	// Title
@@ -76,26 +93,28 @@ func (tl *TicketList) createRow(t glpi.Ticket) *gtk.ListBoxRow {
 	titleLabel.AddCSSClass("ticket-title")
 	titleLabel.SetHAlign(gtk.AlignStart)
 	titleLabel.SetEllipsize(3) // PANGO_ELLIPSIZE_END
-	titleLabel.SetMaxWidthChars(40)
+	titleLabel.SetMaxWidthChars(42)
 	box.Append(titleLabel)
 
-	// Bottom: status + date
-	bottomBox := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	// Bottom: status + priority badges
+	bottomBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+
 	statusLabel := gtk.NewLabel(t.Status)
 	statusLabel.AddCSSClass("status-badge")
+	statusLabel.AddCSSClass(statusCSSClass(t.StatusCode))
 	statusLabel.SetHAlign(gtk.AlignStart)
 	bottomBox.Append(statusLabel)
 
-	if t.DateMod != "" {
-		dateLabel := gtk.NewLabel(t.DateMod)
-		dateLabel.AddCSSClass("ticket-meta")
-		dateLabel.SetHAlign(gtk.AlignEnd)
-		dateLabel.SetHExpand(true)
-		bottomBox.Append(dateLabel)
-	}
+	prioLabel := gtk.NewLabel(glpi.PriorityName(t.Priority))
+	prioLabel.AddCSSClass("priority-badge")
+	prioLabel.AddCSSClass(priorityCSSClass(t.Priority))
+	prioLabel.SetHAlign(gtk.AlignStart)
+	bottomBox.Append(prioLabel)
+
 	box.Append(bottomBox)
 
-	row.SetChild(box)
+	outer.Append(box)
+	row.SetChild(outer)
 	return row
 }
 
@@ -116,4 +135,55 @@ func priorityCSSClass(p int) string {
 	default:
 		return "priority-medium"
 	}
+}
+
+func priorityLevel(p int) string {
+	switch p {
+	case 1:
+		return "very-low"
+	case 2:
+		return "low"
+	case 3:
+		return "medium"
+	case 4:
+		return "high"
+	case 5:
+		return "very-high"
+	case 6:
+		return "critical"
+	default:
+		return "medium"
+	}
+}
+
+func statusCSSClass(code int) string {
+	switch code {
+	case 1:
+		return "status-new"
+	case 2, 3:
+		return "status-processing"
+	case 4:
+		return "status-pending"
+	case 5:
+		return "status-solved"
+	case 6:
+		return "status-closed"
+	default:
+		return ""
+	}
+}
+
+func formatDate(dateStr string) string {
+	t, err := time.Parse("2006-01-02 15:04:05", dateStr)
+	if err != nil {
+		return dateStr
+	}
+	now := time.Now()
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04")
+	}
+	if t.Year() == now.Year() {
+		return t.Format("02/01 15:04")
+	}
+	return t.Format("02/01/2006")
 }

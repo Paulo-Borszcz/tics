@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/pauloborszcz/tics/internal/config"
 	"github.com/pauloborszcz/tics/internal/glpi"
 	"github.com/pauloborszcz/tics/internal/service"
@@ -15,7 +15,7 @@ import (
 const AppID = "com.github.pauloborszcz.Tics"
 
 type App struct {
-	gtkApp *gtk.Application
+	gtkApp *adw.Application
 	cfg    *config.Config
 	client *glpi.Client
 	sync   *service.SyncService
@@ -24,7 +24,7 @@ type App struct {
 }
 
 func NewApp(cfg *config.Config) *App {
-	gtkApp := gtk.NewApplication(AppID, gio.ApplicationFlagsNone)
+	gtkApp := adw.NewApplication(AppID, gio.ApplicationFlagsNone)
 
 	app := &App{
 		gtkApp: gtkApp,
@@ -40,7 +40,6 @@ func NewApp(cfg *config.Config) *App {
 		app.onShutdown()
 	})
 
-	// Register show-window action for notifications
 	showAction := gio.NewSimpleAction("show-window", nil)
 	showAction.ConnectActivate(func(_ *glib.Variant) {
 		if app.window != nil {
@@ -68,12 +67,13 @@ func (a *App) onActivate() {
 }
 
 func (a *App) showSetup() {
-	win := gtk.NewApplicationWindow(a.gtkApp)
+	win := adw.NewApplicationWindow(&a.gtkApp.Application)
 	win.SetTitle("Tics - Configuracao")
-	win.SetDefaultSize(500, 500)
+	win.SetDefaultSize(500, 600)
 
-	header := gtk.NewHeaderBar()
-	win.SetTitlebar(header)
+	toolbar := adw.NewToolbarView()
+	header := adw.NewHeaderBar()
+	toolbar.AddTopBar(header)
 
 	setupPage := NewSetupPage(a.cfg, func(cfg *config.Config) {
 		a.cfg = cfg
@@ -81,8 +81,8 @@ func (a *App) showSetup() {
 		a.startMainApp()
 	})
 
-	win.SetChild(setupPage.box)
-	applySetupCSS(win)
+	toolbar.SetContent(setupPage.box)
+	win.SetContent(toolbar)
 	win.Show()
 }
 
@@ -92,17 +92,16 @@ func (a *App) startMainApp() {
 	log.Println("Initializing GLPI session...")
 	if err := a.client.InitSession(); err != nil {
 		log.Printf("Failed to init GLPI session: %v", err)
-		// Show setup again if session fails
 		a.showSetup()
 		return
 	}
 	log.Println("GLPI session initialized successfully")
 
 	a.sync = service.NewSyncService(a.client, a.cfg)
-	a.notify = service.NewNotifier(&a.gtkApp.Application)
+	a.notify = service.NewNotifier(&a.gtkApp.Application.Application)
 
 	log.Println("Creating window...")
-	a.window = NewWindow(a.gtkApp, a.client, a.sync, a.cfg, func() {
+	a.window = NewWindow(&a.gtkApp.Application, a.client, a.sync, a.cfg, func() {
 		a.window = nil
 		a.showSetup()
 	})
@@ -110,10 +109,8 @@ func (a *App) startMainApp() {
 	a.window.win.Show()
 	log.Println("Window shown")
 
-	// Load user info in background
 	go a.loadUserInfo()
 
-	// Wire sync callbacks
 	a.sync.OnUpdate(func(tickets []glpi.Ticket) {
 		glib.IdleAdd(func() {
 			a.window.UpdateTickets(tickets)
@@ -125,7 +122,6 @@ func (a *App) startMainApp() {
 		})
 	})
 
-	// Start background sync
 	a.sync.Start()
 }
 
@@ -162,40 +158,4 @@ func (a *App) onShutdown() {
 
 func (a *App) Run() int {
 	return a.gtkApp.Run(os.Args)
-}
-
-func applySetupCSS(win *gtk.ApplicationWindow) {
-	css := gtk.NewCSSProvider()
-	css.LoadFromData(`
-		.setup-title {
-			font-size: 2em;
-			font-weight: bold;
-		}
-		.setup-subtitle {
-			font-size: 1.1em;
-			color: alpha(@theme_fg_color, 0.6);
-		}
-		.setup-field-label {
-			font-weight: bold;
-			font-size: 0.9em;
-		}
-		.setup-save-btn {
-			padding: 8px 24px;
-			font-size: 1.05em;
-		}
-		.setup-error {
-			color: #cc0000;
-		}
-		.setup-success {
-			color: #4e9a06;
-		}
-		.setup-status {
-			font-size: 0.9em;
-		}
-	`)
-	gtk.StyleContextAddProviderForDisplay(
-		win.Window.Widget.Display(),
-		css,
-		gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-	)
 }

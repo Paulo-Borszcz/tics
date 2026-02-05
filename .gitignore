@@ -1,0 +1,19 @@
+# Binary
+/tics
+
+# Deploy with hardcoded tokens
+deploy/tics.service
+
+# Config with tokens
+config.json
+
+# Go
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

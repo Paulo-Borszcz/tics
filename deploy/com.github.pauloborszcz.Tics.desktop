@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Tics
+Comment=GLPI Ticket Manager
+Exec=tics
+Icon=preferences-system-notifications
+Categories=Utility;GTK;
+Keywords=glpi;tickets;helpdesk;
+StartupNotify=true
+Terminal=false

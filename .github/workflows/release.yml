@@ -24,7 +24,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Build
-        run: go build -o tics-linux-amd64 ./cmd/tics
+        run: go build -buildvcs=false -o tics-linux-amd64 ./cmd/tics
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

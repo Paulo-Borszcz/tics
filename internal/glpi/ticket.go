@@ -45,8 +45,7 @@ const (
 	StatusClosed           = 6
 )
 
-// SearchMyTickets returns tickets: new tickets OR assigned to user (512) and not closed.
-// Mirrors saved search 358 from GLPI.
+// SearchMyTickets returns tickets: new tickets OR (assigned to current user AND not solved/closed).
 func (c *Client) SearchMyTickets() ([]Ticket, error) {
 	params := url.Values{}
 	// criteria[0]: status = New (1)
@@ -54,12 +53,12 @@ func (c *Client) SearchMyTickets() ([]Ticket, error) {
 	params.Set("criteria[0][field]", "12")
 	params.Set("criteria[0][searchtype]", "equals")
 	params.Set("criteria[0][value]", "1")
-	// criteria[1]: OR technician = 512 (user ID)
+	// criteria[1]: OR technician = current logged-in user
 	params.Set("criteria[1][link]", "OR")
 	params.Set("criteria[1][field]", "5")
 	params.Set("criteria[1][searchtype]", "equals")
-	params.Set("criteria[1][value]", "512")
-	// criteria[2]: AND status = notold
+	params.Set("criteria[1][value]", "myself")
+	// criteria[2]: AND status = notold (not solved, not closed)
 	params.Set("criteria[2][link]", "AND")
 	params.Set("criteria[2][field]", "12")
 	params.Set("criteria[2][searchtype]", "equals")

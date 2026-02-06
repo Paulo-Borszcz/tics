@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/pauloborszcz/tics/internal/config"
 	"github.com/pauloborszcz/tics/internal/glpi"
 	"github.com/pauloborszcz/tics/internal/service"
@@ -67,12 +68,32 @@ func (a *App) onActivate() {
 }
 
 func (a *App) showSetup() {
+	a.showSetupWindow(false)
+}
+
+func (a *App) showSetupFromSettings() {
+	a.showSetupWindow(true)
+}
+
+func (a *App) showSetupWindow(fromSettings bool) {
 	win := adw.NewApplicationWindow(&a.gtkApp.Application)
 	win.SetTitle("Tics - Configuracao")
 	win.SetDefaultSize(500, 600)
 
 	toolbar := adw.NewToolbarView()
 	header := adw.NewHeaderBar()
+
+	if fromSettings {
+		backBtn := gtk.NewButton()
+		backBtn.SetIconName("go-previous-symbolic")
+		backBtn.SetTooltipText("Voltar")
+		backBtn.ConnectClicked(func() {
+			win.Close()
+			a.startMainApp()
+		})
+		header.PackStart(backBtn)
+	}
+
 	toolbar.AddTopBar(header)
 
 	setupPage := NewSetupPage(a.cfg, func(cfg *config.Config) {
@@ -103,7 +124,7 @@ func (a *App) startMainApp() {
 	log.Println("Creating window...")
 	a.window = NewWindow(&a.gtkApp.Application, a.client, a.sync, a.cfg, func() {
 		a.window = nil
-		a.showSetup()
+		a.showSetupFromSettings()
 	})
 	log.Println("Showing window...")
 	a.window.win.Show()

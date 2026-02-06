@@ -88,7 +88,7 @@ func (s *SyncService) Refresh() {
 	auto := s.autoFollowup
 	s.mu.Unlock()
 	if auto {
-		go AutoFollowup(s.client, tickets)
+		go AutoFollowup(s.client, s.cfg, tickets)
 	}
 }
 

@@ -98,7 +98,7 @@ func (sp *SetupPage) onValidate() {
 		GLPIURL:      url,
 		UserToken:    token,
 		AppToken:     appToken,
-		SyncInterval: 5 * time.Minute,
+		SyncInterval: 30 * time.Second,
 	}
 
 	go func() {

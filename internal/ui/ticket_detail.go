@@ -106,7 +106,7 @@ func (td *TicketDetail) renderTicket(ticket *glpi.Ticket, followups []glpi.Follo
 		row2.Append(infoField("CRIADO EM", formatDate(ticket.DateCreation), "info-card-value"))
 	}
 	if ticket.Entity != "" {
-		row2.Append(infoField("ENTIDADE", ticket.Entity, "info-card-value"))
+		row2.Append(infoField("ENTIDADE", stripHTML(ticket.Entity), "info-card-value"))
 	}
 	if row2.FirstChild() != nil {
 		infoCard.Append(row2)

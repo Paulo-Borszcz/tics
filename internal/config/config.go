@@ -16,7 +16,16 @@ type Config struct {
 	GLPIURL      string        `json:"glpi_url"`
 	UserToken    string        `json:"user_token"`
 	AppToken     string        `json:"app_token"`
+	FollowupHTML string        `json:"followup_html,omitempty"`
 	SyncInterval time.Duration `json:"-"`
+}
+
+// GetFollowupHTML returns the custom followup HTML if set, otherwise the default.
+func (c *Config) GetFollowupHTML() string {
+	if c.FollowupHTML != "" {
+		return c.FollowupHTML
+	}
+	return AutoFollowupHTML
 }
 
 var Templates = []string{
@@ -91,23 +100,23 @@ func (c *Config) Save() error {
 
 // Load reads config from file, falling back to environment variables.
 func Load() *Config {
-	interval := 5
+	intervalSec := 30
 	if v := os.Getenv("TICS_SYNC_INTERVAL"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			interval = n
+			intervalSec = n
 		}
 	}
 
 	cfg := &Config{
 		GLPIURL:      "https://nexus.lojasmm.com.br/apirest.php",
-		SyncInterval: time.Duration(interval) * time.Minute,
+		SyncInterval: time.Duration(intervalSec) * time.Second,
 	}
 
 	// Try loading from file first
 	if path, err := configPath(); err == nil {
 		if data, err := os.ReadFile(path); err == nil {
 			if err := json.Unmarshal(data, cfg); err == nil && cfg.UserToken != "" {
-				cfg.SyncInterval = time.Duration(interval) * time.Minute
+				cfg.SyncInterval = time.Duration(intervalSec) * time.Second
 				return cfg
 			}
 		}

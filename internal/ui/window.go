@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+
 	"github.com/pauloborszcz/tics/internal/config"
 	"github.com/pauloborszcz/tics/internal/glpi"
 	"github.com/pauloborszcz/tics/internal/service"
@@ -82,6 +83,19 @@ func NewWindow(app *gtk.Application, client *glpi.Client, syncSvc *service.SyncS
 	autoRow.Append(autoSwitch)
 	popBox.Append(autoRow)
 
+	autoDesc := gtk.NewLabel("Envia automaticamente um cartao\n\"ATENDIMENTO ABERTO\" com seus\ndados de contato para chamados\natribuidos a voce em processamento.")
+	autoDesc.SetHAlign(gtk.AlignStart)
+	autoDesc.SetMarginStart(8)
+	autoDesc.SetMarginEnd(8)
+	autoDesc.SetMarginBottom(4)
+	autoDesc.SetWrap(true)
+	autoDesc.AddCSSClass("dim-label")
+	autoDesc.AddCSSClass("caption")
+	popBox.Append(autoDesc)
+
+	editMsgBtn := popoverButton("document-edit-symbolic", "Editar mensagem")
+	popBox.Append(editMsgBtn)
+
 	popBox.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
 
 	refreshBtn := popoverButton("view-refresh-symbolic", "Atualizar chamados")
@@ -105,6 +119,11 @@ func NewWindow(app *gtk.Application, client *glpi.Client, syncSvc *service.SyncS
 			w.win.Close()
 			w.onSettings()
 		}
+	})
+
+	editMsgBtn.ConnectClicked(func() {
+		popover.Popdown()
+		w.showFollowupEditor()
 	})
 
 	header.PackStart(avatarBtn)
@@ -203,6 +222,87 @@ func (w *Window) SetUserAvatar(data []byte) {
 func (w *Window) ShowToast(message string) {
 	toast := adw.NewToast(message)
 	w.toastOverlay.AddToast(toast)
+}
+
+func (w *Window) showFollowupEditor() {
+	dialog := gtk.NewWindow()
+	dialog.SetTitle("Editar mensagem de auto-followup")
+	dialog.SetDefaultSize(600, 500)
+	dialog.SetModal(true)
+	dialog.SetTransientFor(&w.win.ApplicationWindow.Window)
+
+	box := gtk.NewBox(gtk.OrientationVertical, 12)
+	box.SetMarginTop(16)
+	box.SetMarginBottom(16)
+	box.SetMarginStart(16)
+	box.SetMarginEnd(16)
+
+	infoLabel := gtk.NewLabel("Edite o HTML da mensagem enviada automaticamente aos chamados:")
+	infoLabel.SetHAlign(gtk.AlignStart)
+	infoLabel.SetWrap(true)
+	box.Append(infoLabel)
+
+	// Text view with current HTML
+	textView := gtk.NewTextView()
+	textView.SetWrapMode(gtk.WrapWord)
+	textView.SetMonospace(true)
+	textView.Buffer().SetText(w.cfg.GetFollowupHTML())
+
+	scrolled := gtk.NewScrolledWindow()
+	scrolled.SetChild(textView)
+	scrolled.SetVExpand(true)
+	scrolled.AddCSSClass("card")
+	box.Append(scrolled)
+
+	// Status label
+	statusLabel := gtk.NewLabel("")
+	statusLabel.SetHAlign(gtk.AlignStart)
+	box.Append(statusLabel)
+
+	// Buttons
+	btnBox := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	btnBox.SetHAlign(gtk.AlignEnd)
+
+	resetBtn := gtk.NewButtonWithLabel("Restaurar padrao")
+	resetBtn.ConnectClicked(func() {
+		textView.Buffer().SetText(config.AutoFollowupHTML)
+	})
+	btnBox.Append(resetBtn)
+
+	cancelBtn := gtk.NewButtonWithLabel("Cancelar")
+	cancelBtn.ConnectClicked(func() {
+		dialog.Close()
+	})
+	btnBox.Append(cancelBtn)
+
+	saveBtn := gtk.NewButtonWithLabel("Salvar")
+	saveBtn.AddCSSClass("suggested-action")
+	saveBtn.ConnectClicked(func() {
+		buf := textView.Buffer()
+		start := buf.StartIter()
+		end := buf.EndIter()
+		html := buf.Text(start, end, false)
+
+		// If it matches the default, clear custom to use default
+		if html == config.AutoFollowupHTML {
+			w.cfg.FollowupHTML = ""
+		} else {
+			w.cfg.FollowupHTML = html
+		}
+
+		if err := w.cfg.Save(); err != nil {
+			statusLabel.SetText("Erro ao salvar: " + err.Error())
+			statusLabel.AddCSSClass("error")
+			return
+		}
+
+		dialog.Close()
+	})
+	btnBox.Append(saveBtn)
+
+	box.Append(btnBox)
+	dialog.SetChild(box)
+	dialog.Show()
 }
 
 func applyCSS(win *adw.ApplicationWindow) {

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     container:
       image: fedora:42
@@ -26,8 +26,87 @@ jobs:
       - name: Build
         run: go build -buildvcs=false -o tics-linux-amd64 ./cmd/tics
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: tics-linux-amd64
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-gobject-introspection
+            mingw-w64-ucrt-x86_64-go
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-gcc
+            git
+
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: go build -buildvcs=false -o tics.exe ./cmd/tics
+
+      - name: Collect runtime files
+        run: |
+          mkdir -p dist
+
+          # Executable
+          cp tics.exe dist/
+
+          # All required DLLs
+          ldd tics.exe | grep "ucrt64" | awk '{print $3}' | while read dll; do
+            cp "$dll" dist/
+          done
+
+          # gdbus.exe needed by GLib/GIO on Windows
+          cp /ucrt64/bin/gdbus.exe dist/ 2>/dev/null || true
+
+          # GDK pixbuf loaders
+          mkdir -p dist/lib/gdk-pixbuf-2.0/2.10.0/loaders
+          cp /ucrt64/lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll dist/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+          cp /ucrt64/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache dist/lib/gdk-pixbuf-2.0/2.10.0/
+
+          # GLib schemas
+          mkdir -p dist/share/glib-2.0/schemas
+          cp /ucrt64/share/glib-2.0/schemas/gschemas.compiled dist/share/glib-2.0/schemas/
+
+          # Adwaita and hicolor icon themes
+          mkdir -p dist/share/icons
+          cp -r /ucrt64/share/icons/Adwaita dist/share/icons/
+          cp -r /ucrt64/share/icons/hicolor dist/share/icons/
+
+      - name: Create installer
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$version packaging\windows\tics.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: tics-windows-amd64-setup.exe
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: tics-linux-amd64
+          files: |
+            tics-linux-amd64
+            tics-windows-amd64-setup.exe
